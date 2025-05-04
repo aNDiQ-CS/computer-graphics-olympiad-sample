@@ -1,0 +1,151 @@
+﻿#ifndef SAMPLE_PASS_INCLUDED
+#define SAMPLE_PASS_INCLUDED
+
+#include "SampleData.hlsl"
+#include "SampleInput.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+
+#define CALLBACK_COLOR half4(255.0 / 255.0, 0.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0)
+
+TEXTURE2D(_BaseMap);
+SAMPLER(sampler_BaseMap);
+TEXTURE2D(_RoughnessMap);
+SAMPLER(sampler_RoughnessMap);
+TEXTURE2D(_AlbedoMap);
+SAMPLER(sampler_AlbedoMap);
+TEXTURE2D(_MetallicMap);
+SAMPLER(sampler_MetallicMap);
+TEXTURE2D(_NormalMap);
+SAMPLER(sampler_NormalMap);
+
+CBUFFER_START(UnityPerMaterial)
+	float4 _BaseColor;
+	float _Roughness;
+	float _Metallic;
+	float _NormalScale;
+CBUFFER_END
+
+float3 ACESFitted(float3 color)
+{
+    color *= 0.6;
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return saturate((color*(a*color + b))/(color*(c*color + d) + e));
+}
+
+VertexOutput Vertex(VertexInput vertexInput)
+{
+	VertexOutput vertexOutput;
+	vertexOutput.positionWS = TransformObjectToWorld(vertexInput.positionOS.xyz);
+	vertexOutput.positionCS = TransformWorldToHClip(vertexOutput.positionWS);	
+
+	vertexOutput.normalWS = TransformObjectToWorldNormal(vertexInput.normalOS);
+	float3 tangentWS = TransformObjectToWorldDir(vertexInput.tangentOS.xyz);
+	vertexOutput.tangentWS = float4(tangentWS, vertexInput.tangentOS.w);
+
+	// Глобальный свет
+	//Light light = GetMainLight();
+	//vertexOutput.lightAmount = LightingLambert(light.color, light.direction, vertexOutput.positionWS.xyz);
+
+	vertexOutput.uv = vertexInput.uv;
+	return vertexOutput;
+}
+
+half4 Fragment(VertexOutput fragmentInput) : SV_Target
+{
+    // Сэмплирование текстур
+    float4 baseMapColor = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, fragmentInput.uv);
+    float4 albedo = baseMapColor * _BaseColor;
+    float roughness = SAMPLE_TEXTURE2D(_RoughnessMap, sampler_RoughnessMap, fragmentInput.uv).r * _Roughness;
+    float metallic = SAMPLE_TEXTURE2D(_MetallicMap, sampler_MetallicMap, fragmentInput.uv).r * _Metallic;
+    float3 normalTS = UnpackNormal(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, fragmentInput.uv));
+    normalTS.xy *= _NormalScale;
+
+    // Трансформация нормалей
+    float3 normalWS = normalize(fragmentInput.normalWS);
+    float3 tangentWS = normalize(fragmentInput.tangentWS.xyz);
+    float3 bitangentWS = cross(normalWS, tangentWS) * fragmentInput.tangentWS.w;
+    float3x3 TBN = float3x3(tangentWS, bitangentWS, normalWS);
+    float3 N = normalize(mul(normalTS, TBN));
+
+    // Векторы направления
+    float3 V = normalize(_WorldSpaceCameraPos - fragmentInput.positionWS);
+    float3 ambient = SampleSH(N); // Окружающее освещение
+
+    // Инициализация освещения
+    float3 totalColor = ambient * albedo.rgb;
+    
+    // Основной источник света
+    Light mainLight = GetMainLight();
+    float3 L = normalize(mainLight.direction);
+    float3 H = normalize(V + L);
+    
+    // Расчёт параметров для основного света
+    float NdotL = saturate(dot(N, L));
+    float NdotV = saturate(dot(N, V));
+    float NdotH = saturate(dot(N, H));
+    float VdotH = saturate(dot(V, H));
+
+    // PBR расчеты
+    float3 F0 = lerp(0.04, albedo.rgb, metallic);
+    float3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+    
+    float alpha = roughness * roughness;
+    float alphaSq = alpha * alpha;
+    float denom = (NdotH * NdotH) * (alphaSq - 1.0) + 1.0;
+    float D = alphaSq / (PI * denom * denom);
+    
+    float k = (alpha + 1.0) * (alpha + 1.0) / 8.0;
+    float G = (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));
+    
+    float3 specular = (D * F * G) / (4.0 * NdotV * NdotL + 1e-5);
+    float3 kDiffuse = (1.0 - F) * (1.0 - metallic);
+    float3 diffuse = kDiffuse * albedo.rgb / PI * NdotL;
+    
+    totalColor += (diffuse + specular) * mainLight.color * mainLight.distanceAttenuation;
+
+    // Дополнительные источники света
+    uint numAdditionalLights = GetAdditionalLightsCount();
+    for(uint i = 0; i < numAdditionalLights; i++)
+    {
+        Light light = GetAdditionalLight(i, fragmentInput.positionWS);
+        #if defined(_LIGHT_TYPE_DIRECTIONAL)
+        if(light.lightType == LightType.Directional) 
+            continue;
+        #endif
+
+        L = normalize(light.direction);
+        H = normalize(V + L);
+        
+        NdotL = saturate(dot(N, L));
+        NdotH = saturate(dot(N, H));
+        VdotH = saturate(dot(V, H));
+
+        // Повторяем PBR расчеты для каждого источника
+        F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+        
+        denom = (NdotH * NdotH) * (alphaSq - 1.0) + 1.0;
+        D = alphaSq / (PI * denom * denom);
+        
+        G = (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));
+        
+        specular = (D * F * G) / (4.0 * NdotV * NdotL + 1e-5);
+        kDiffuse = (1.0 - F) * (1.0 - metallic);
+        diffuse = kDiffuse * albedo.rgb / PI * NdotL;
+        
+        totalColor += (diffuse + specular) * light.color * light.distanceAttenuation;
+    }
+
+    // Тональная компрессия и гамма-коррекция
+    totalColor = ACESFitted(totalColor);
+    totalColor = LinearToSRGB(totalColor);
+
+    return half4(totalColor * _BaseColor.rgb, albedo.a);
+}
+
+
+
+#endif
