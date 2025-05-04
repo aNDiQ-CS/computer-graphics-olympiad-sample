@@ -10,6 +10,7 @@ Shader"Custom/Task1" {
 		_Metallic ("Metallic", Range(0, 1)) = 0.5		
 		_NormalMap ("Normal Map", 2D) = "white" {}
 		_NormalScale ("Normal Scale", Range(0, 1)) = 0
+		_EnvReflectionIntensity ("Reflection Intensity", Range(0, 1)) = 0.5
 	}
 
     HLSLINCLUDE

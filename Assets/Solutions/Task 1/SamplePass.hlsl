@@ -4,6 +4,7 @@
 #include "SampleData.hlsl"
 #include "SampleInput.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GlobalIllumination.hlsl"
 
 #define CALLBACK_COLOR half4(255.0 / 255.0, 0.0 / 255.0, 255.0 / 255.0, 255.0 / 255.0)
 
@@ -19,10 +20,11 @@ TEXTURE2D(_NormalMap);
 SAMPLER(sampler_NormalMap);
 
 CBUFFER_START(UnityPerMaterial)
-	float4 _BaseColor;
-	float _Roughness;
-	float _Metallic;
-	float _NormalScale;
+    float4 _BaseColor;
+    float _Roughness;
+    float _Metallic;
+    float _NormalScale;
+    float _EnvReflectionIntensity;
 CBUFFER_END
 
 float3 ACESFitted(float3 color)
@@ -38,20 +40,16 @@ float3 ACESFitted(float3 color)
 
 VertexOutput Vertex(VertexInput vertexInput)
 {
-	VertexOutput vertexOutput;
-	vertexOutput.positionWS = TransformObjectToWorld(vertexInput.positionOS.xyz);
-	vertexOutput.positionCS = TransformWorldToHClip(vertexOutput.positionWS);	
+    VertexOutput vertexOutput;
+    vertexOutput.positionWS = TransformObjectToWorld(vertexInput.positionOS.xyz);
+    vertexOutput.positionCS = TransformWorldToHClip(vertexOutput.positionWS);    
 
-	vertexOutput.normalWS = TransformObjectToWorldNormal(vertexInput.normalOS);
-	float3 tangentWS = TransformObjectToWorldDir(vertexInput.tangentOS.xyz);
-	vertexOutput.tangentWS = float4(tangentWS, vertexInput.tangentOS.w);
+    vertexOutput.normalWS = TransformObjectToWorldNormal(vertexInput.normalOS);
+    float3 tangentWS = TransformObjectToWorldDir(vertexInput.tangentOS.xyz);
+    vertexOutput.tangentWS = float4(tangentWS, vertexInput.tangentOS.w);
 
-	// Глобальный свет
-	//Light light = GetMainLight();
-	//vertexOutput.lightAmount = LightingLambert(light.color, light.direction, vertexOutput.positionWS.xyz);
-
-	vertexOutput.uv = vertexInput.uv;
-	return vertexOutput;
+    vertexOutput.uv = vertexInput.uv;
+    return vertexOutput;
 }
 
 half4 Fragment(VertexOutput fragmentInput) : SV_Target
@@ -73,7 +71,7 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
 
     // Векторы направления
     float3 V = normalize(_WorldSpaceCameraPos - fragmentInput.positionWS);
-    float3 ambient = SampleSH(N); // Окружающее освещение
+    float3 ambient = SampleSH(N);
 
     // Инициализация освещения
     float3 totalColor = ambient * albedo.rgb;
@@ -83,13 +81,12 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
     float3 L = normalize(mainLight.direction);
     float3 H = normalize(V + L);
     
-    // Расчёт параметров для основного света
+    // PBR расчеты для основного света
     float NdotL = saturate(dot(N, L));
     float NdotV = saturate(dot(N, V));
     float NdotH = saturate(dot(N, H));
     float VdotH = saturate(dot(V, H));
 
-    // PBR расчеты
     float3 F0 = lerp(0.04, albedo.rgb, metallic);
     float3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
     
@@ -113,8 +110,7 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
     {
         Light light = GetAdditionalLight(i, fragmentInput.positionWS);
         #if defined(_LIGHT_TYPE_DIRECTIONAL)
-        if(light.lightType == LightType.Directional) 
-            continue;
+        if(light.lightType == LightType.Directional) continue;
         #endif
 
         L = normalize(light.direction);
@@ -124,14 +120,10 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
         NdotH = saturate(dot(N, H));
         VdotH = saturate(dot(V, H));
 
-        // Повторяем PBR расчеты для каждого источника
         F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
-        
         denom = (NdotH * NdotH) * (alphaSq - 1.0) + 1.0;
         D = alphaSq / (PI * denom * denom);
-        
         G = (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));
-        
         specular = (D * F * G) / (4.0 * NdotV * NdotL + 1e-5);
         kDiffuse = (1.0 - F) * (1.0 - metallic);
         diffuse = kDiffuse * albedo.rgb / PI * NdotL;
@@ -139,13 +131,24 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
         totalColor += (diffuse + specular) * light.color * light.distanceAttenuation;
     }
 
-    // Тональная компрессия и гамма-коррекция
+    // Image-Based Lighting (Reflection Probes)
+    float3 reflection = reflect(-V, N);
+    float mip = PerceptualRoughnessToMipmapLevel(roughness);
+    float4 encodedIrradiance = SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, reflection, mip);
+    float3 iblSpecular = DecodeHDREnvironment(encodedIrradiance, unity_SpecCube0_HDR);
+    
+    float surfaceReduction = 1.0 / (roughness*roughness + 1.0);
+    float3 fresnel = F0 + (1.0 - F0) * exp2((-5.55473 * dot(V, N) - 6.98316) * dot(V, N));
+    iblSpecular *= surfaceReduction * fresnel * _EnvReflectionIntensity * metallic;
+    
+    totalColor += iblSpecular;
+
+
+    // Постобработка
     totalColor = ACESFitted(totalColor);
     totalColor = LinearToSRGB(totalColor);
 
     return half4(totalColor * _BaseColor.rgb, albedo.a);
 }
-
-
 
 #endif
