@@ -1,8 +1,8 @@
 ﻿#ifndef SAMPLE_PASS_INCLUDED
 #define SAMPLE_PASS_INCLUDED
 
-#include "SampleData.hlsl"
-#include "SampleInput.hlsl"
+#include "PBRData.hlsl"
+#include "PBRInput.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GlobalIllumination.hlsl"
 

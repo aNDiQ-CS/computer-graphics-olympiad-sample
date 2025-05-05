@@ -1,4 +1,4 @@
-Shader"Custom/Task1" {
+Shader"Custom/PBRShader" {
     Properties
 	{
 		[NoScaleOffset]_BaseMap("Texture", 2D) = "white" { }
@@ -16,7 +16,7 @@ Shader"Custom/Task1" {
     HLSLINCLUDE
 		#pragma exclude_renderers gles
 
-		#include "SamplePass.hlsl"
+		#include "PBRPass.hlsl"
 	ENDHLSL
 
     SubShader

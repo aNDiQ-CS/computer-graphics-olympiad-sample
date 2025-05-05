@@ -9,7 +9,7 @@ Shader "Olympiad/Sample"
 	HLSLINCLUDE
 		#pragma exclude_renderers gles
 
-		#include "SamplePass.hlsl"
+		#include "PBRPass.hlsl"
 	ENDHLSL
 
 	SubShader
