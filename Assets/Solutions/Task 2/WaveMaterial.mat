@@ -52,6 +52,10 @@ Material:
         m_Texture: {fileID: 2800000, guid: ad64ca1da47771c4eac501e66256978d, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _ImpactMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _MainTex:
         m_Texture: {fileID: 2800000, guid: 560189b36a77d5b4b9cade65d15ed25d, type: 3}
         m_Scale: {x: 1, y: 1}
@@ -95,11 +99,13 @@ Material:
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
-    - _CellSize: 3.6
+    - _CellSize: 0.49
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _Cull: 2
     - _Cutoff: 0.5
+    - _Density: 0.71
+    - _DepthGradient: 0
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
     - _Displacement: 0.09
@@ -109,14 +115,18 @@ Material:
     - _EdgeSharpness: 50
     - _EdgeWidth: 0.595
     - _EnvironmentReflections: 1
+    - _FoamIntensity: 2
+    - _FoamSmoothness: 1
     - _FoamSpeed: 1.48
-    - _FoamThreshold: 0
+    - _FoamThreshold: 0.052
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
     - _ImpactRadius: 19.37
+    - _ImpactSize: 0
     - _ImpactStrength: 7.7
     - _Metallic: 0
+    - _NoiseIntensity: 0.364
     - _NoiseScale: 50
     - _NormalStrength: 2
     - _OcclusionStrength: 1
@@ -141,10 +151,12 @@ Material:
     - _VoronoiCellSize: 7.05
     - _VortexScale: 4.99
     - _VortexSpeed: 3.62
-    - _WaveAmplitude: 2
+    - _WaveAmplitude: 1.97
+    - _WaveFrequency: 0.8
     - _WaveHeight: 0.89
     - _WaveScale: 18
-    - _WaveSpeed: 3.05
+    - _WaveSpeed: 1.23
+    - _WaveSteepness: 0.381
     - _WaveStrength: 2
     - _WorkflowMode: 1
     - _ZWrite: 1
@@ -152,10 +164,12 @@ Material:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 0.23844068, g: 0.46222, b: 0.690566, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _FoamColor: {r: 1, g: 1, b: 1, a: 1}
+    - _FoamColor: {r: 0.46733356, g: 0.5621226, b: 0.7056604, a: 1}
     - _ImpactPos: {r: 0, g: 0, b: 0, a: 0}
+    - _OceanColor: {r: 0.098039225, g: 0.23529413, b: 0.4431373, a: 1}
     - _ShallowColor: {r: 0.027860438, g: 0.095501535, b: 0.16226411, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
+    - _WaterColor: {r: 0.09999997, g: 0.29999998, b: 0.6, a: 1}
   m_BuildTextureStacks: []
 --- !u!114 &4153297368710088245
 MonoBehaviour:
