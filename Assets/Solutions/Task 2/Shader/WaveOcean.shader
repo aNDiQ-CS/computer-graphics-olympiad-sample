@@ -18,10 +18,14 @@ Shader "Custom/WaveOcean"
         _CellSize ("Cell Size", Range(0.1, 10)) = 2.0
         _Density ("Density", Range(0.01, 2)) = 1.0
         _NoiseIntensity ("Noise Intensity", Range(0,1)) = 0.3
-
+        
         [Header(Interaction)]
-        _ImpactMap ("Impact Map", 2D) = "white" {}
-        _ImpactSize ("Impact Size", Range(0,10)) = 1.0
+        _ImpactRadius("Impact Radius", Range(0.1, 10)) = 2.0
+        _ImpactStrength("Impact Strength", Range(0, 5)) = 1.0
+        _ImpactFalloff("Impact Falloff", Range(0.1, 5)) = 1.0
+        _ImpactDecay("Impact Decay Speed", Range(0.1, 5)) = 1.0
+        _ImpactPositions("Impact Positions", Vector) = (0,0,0,0)
+        _ImpactForces("Impact Forces", Vector) = (0,0,0,0)
     }
 
     SubShader

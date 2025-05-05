@@ -36,28 +36,67 @@ float4 UnityObjectToClipPos(float3 pos)
     return mul(UNITY_MATRIX_VP, mul(UNITY_MATRIX_M, float4(pos, 1.0))); 
 }
 
+#define MAX_IMPACTS 100
 
+struct ImpactData
+{
+    float3 position;
+    float force;
+    float time;
+};
+
+StructuredBuffer<ImpactData> _ImpactsBuffer;
+int _ActiveImpactsCount;
+
+float3 ApplyObjectImpacts(float3 worldPos)
+{
+    float totalImpact = 0.0;
+    
+    for (int i = 0; i < _ActiveImpactsCount; i++)
+    {
+        ImpactData impact = _ImpactsBuffer[i];
+        float timeSinceImpact = _Time.y - impact.time;
+        
+        // Гасим амплитуду до нуля плавно
+        float lifeFactor = saturate(1.0 - timeSinceImpact / 2.0);
+        if (lifeFactor <= 0.0)
+            continue;
+
+        // Физически корректная волновая функция
+        float dist = distance(worldPos.xz, impact.position.xz);
+        float wave = exp(-pow(dist - timeSinceImpact * 3.0, 2) * 5.0)
+                    * sin(10.0 * (dist - timeSinceImpact * 3.0));
+        
+        totalImpact += wave * impact.force * lifeFactor * _ImpactStrength;
+    }
+    
+    return totalImpact;
+}
 VertexOutput vert(VertexInput v)
 {
     VertexOutput o;
     
-
+    // Базовое смещение
     float3 worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
+    float noise = voronoi(worldPos.xz * 0.1 + _Time.y * _WaveSpeed);
+    float displacement = noise * _WaveAmplitude;
     
-    // Генерируем 3D шум для плавных волн
-    float2 noiseUV = worldPos.xz * 0.1 + _Time.y * _WaveSpeed;
-    float noise = voronoi(noiseUV);
+    // Применяем воздействия от объектов
+    float impactEffect = 0.0;
+    if (_ActiveImpactsCount > 0)
+    {
+        impactEffect = ApplyObjectImpacts(worldPos);
+    }
     
-    // Смещение Y
-    float displacementY = noise * _WaveAmplitude;
-    worldPos.y += displacementY; // Непосредственное изменение Y координаты
-      
-    float3 displacedVertex = mul(unity_WorldToObject, float4(worldPos, 1.0)).xyz;
+    // Комбинируем эффекты
+    float combinedDisplacement = (displacement + impactEffect) / (1.0 + _WaveAmplitude * 0.2);
     
-    // Применяем к вершине
-    o.vertex = UnityObjectToClipPos(displacedVertex);
+    worldPos.y += combinedDisplacement;
+    
+    // Преобразование и передача данных
+    o.vertex = UnityObjectToClipPos(mul(unity_WorldToObject, float4(worldPos, 1.0)));
     o.worldPos = worldPos;
-    o.displacement = displacementY;
+    o.displacement = displacement + impactEffect;    
     
     return o;
 }

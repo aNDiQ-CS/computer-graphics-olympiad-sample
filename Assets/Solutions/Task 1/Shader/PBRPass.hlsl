@@ -62,26 +62,21 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
     float3 normalTS = UnpackNormal(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, fragmentInput.uv));
     normalTS.xy *= _NormalScale;
 
-    // Трансформация нормалей
     float3 normalWS = normalize(fragmentInput.normalWS);
     float3 tangentWS = normalize(fragmentInput.tangentWS.xyz);
     float3 bitangentWS = cross(normalWS, tangentWS) * fragmentInput.tangentWS.w;
     float3x3 TBN = float3x3(tangentWS, bitangentWS, normalWS);
     float3 N = normalize(mul(normalTS, TBN));
 
-    // Векторы направления
     float3 V = normalize(_WorldSpaceCameraPos - fragmentInput.positionWS);
     float3 ambient = SampleSH(N);
 
-    // Инициализация освещения
     float3 totalColor = ambient * albedo.rgb;
     
-    // Основной источник света
     Light mainLight = GetMainLight();
     float3 L = normalize(mainLight.direction);
     float3 H = normalize(V + L);
     
-    // PBR расчеты для основного света
     float NdotL = saturate(dot(N, L));
     float NdotV = saturate(dot(N, V));
     float NdotH = saturate(dot(N, H));
@@ -104,7 +99,6 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
     
     totalColor += (diffuse + specular) * mainLight.color * mainLight.distanceAttenuation;
 
-    // Дополнительные источники света
     uint numAdditionalLights = GetAdditionalLightsCount();
     for(uint i = 0; i < numAdditionalLights; i++)
     {
@@ -131,7 +125,6 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
         totalColor += (diffuse + specular) * light.color * light.distanceAttenuation;
     }
 
-    // Image-Based Lighting (Reflection Probes)
     float3 reflection = reflect(-V, N);
     float mip = PerceptualRoughnessToMipmapLevel(roughness);
     float4 encodedIrradiance = SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, reflection, mip);
@@ -143,8 +136,6 @@ half4 Fragment(VertexOutput fragmentInput) : SV_Target
     
     totalColor += iblSpecular;
 
-
-    // Постобработка
     totalColor = ACESFitted(totalColor);
     totalColor = LinearToSRGB(totalColor);
 
